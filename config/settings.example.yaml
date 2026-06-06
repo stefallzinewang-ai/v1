@@ -1,0 +1,43 @@
+# ── 主线雷达 全局配置示例 ──────────────────────────────────────
+# 用法：cp config/settings.example.yaml config/settings.yaml 后按需修改。
+# settings.yaml 含本地路径/token，已在 .gitignore 中忽略，不入库。
+
+# 数据源
+data_source:
+  primary: akshare          # akshare | tushare | baostock
+  tushare_token: ""         # 若用 tushare 填入；留空则不启用
+  rate_limit_per_min: 60    # 限速，避免被封
+  max_retries: 4            # 失败重试次数（指数退避）
+  cache_raw: true           # 是否缓存原始响应，便于复现
+
+# 本地存储
+storage:
+  root: "./data_store"      # 数据落地根目录（见 .gitignore）
+  bars_format: parquet      # 时间序列存储格式
+  meta_db: "meta.sqlite"    # 元数据/水位线
+
+# 回测 / 训练通用参数
+universe:
+  start: "2010-01-01"       # 约 15 年历史起点
+  include_delisted: true    # 纳入退市股，消除幸存者偏差（重要）
+  benchmark: "000300.SH"    # 基准：沪深 300
+
+# 调仓与前瞻
+horizon:
+  rebalance: "monthly"      # 调仓频率：monthly | quarterly
+  forward_days: 63          # 前瞻收益窗口（约一个季度）
+
+# 选股输出
+selection:
+  top_n: 2                  # 最终输出候选数量（你的需求：1~2 家）
+  min_market_cap: 5.0e9     # 最小市值过滤（元），剔除流动性差的小票
+
+# 市场状态阈值（可在 methodology 基础上微调）
+regime:
+  trend_ma_window: 200      # 趋势判断均线窗口（交易日）
+  smoothing_days: 5         # 状态切换平滑，防抖动
+
+# 报告
+report:
+  output_dir: "./reports/output"
+  format: markdown          # markdown | html

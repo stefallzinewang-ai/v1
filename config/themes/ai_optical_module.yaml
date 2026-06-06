@@ -1,0 +1,91 @@
+# ── 主线配置：人工智能 → 数据传输 → 光模块 ──────────────────────
+# 这是系统的内置示例，把 README 里那条逻辑链固化成机器可读的产业链知识。
+# 第 4 层 theme 会加载本文件，第 6 层 selection 据此圈定候选池。
+
+id: ai_optical_module
+name: "AI 算力 · 光模块"
+description: >
+  人工智能行业爆发 → 训练/推理产生海量数据 → 数据传输是核心瓶颈 →
+  光模块决定传输速率（800G/1.6T） → 制造企业的产能与良率是关键。
+  目标：在光模块这一瓶颈环节，确认 1~2 家最受益的公司。
+
+# ── 触发条件：满足才激活这条主线（避免逆风硬选）────────────────
+triggers:
+  market_state:                 # 与第 2 层 regime 输出比对
+    style: [growth, balanced]   # 成长或均衡风格下生效
+    risk_appetite: [high, neutral]
+  industry_prosperity_min: 0.6  # 行业景气分位 > 0.6 才算「在爆发」
+  require_policy_support: true  # 需有政策支持信号
+
+# ── 政策/事件信号（人工维护，后续可 NLP 自动抽取）──────────────
+policy_signals:
+  - tag: "人工智能产业政策"
+    direction: support
+    note: "国家层面将 AI 列为重点发展方向，算力基础设施受益。"
+  - tag: "数据中心/东数西算"
+    direction: support
+    note: "数据中心建设拉动高速光模块需求。"
+
+# ── 产业链：主题 → 环节 → 瓶颈 ─────────────────────────────────
+value_chain:
+  theme: "人工智能"
+  stages:
+    - name: "算力芯片"
+      role: upstream
+      bottleneck: false
+    - name: "数据传输"
+      role: core
+      bottleneck: false
+      note: "AI 的核心是海量数据在芯片/服务器/数据中心间高速传输。"
+    - name: "光模块"
+      role: key_component
+      bottleneck: true            # ★ 本主线的瓶颈环节
+      note: "决定传输速率，是数据传输的物理瓶颈，最受益、弹性最大。"
+    - name: "光芯片/器件"
+      role: upstream_of_bottleneck
+      bottleneck: false
+
+# ── 瓶颈环节的关键变量（驱动股价的核心矛盾）────────────────────
+key_variables:
+  - name: "传输速率代际"
+    metric: "800G / 1.6T 渗透率"
+    direction: up                 # 越高越好
+    note: "高速率产品单价与毛利更高，代际切换是主升浪驱动。"
+  - name: "产能与扩张"
+    metric: "capex / 在建工程 / 产能利用率"
+    direction: up
+    note: "对应'制造企业的能力'，能否承接需求放量。"
+  - name: "良率与成本"
+    metric: "毛利率趋势"
+    direction: up
+  - name: "客户结构"
+    metric: "海外大客户/云厂商收入占比"
+    direction: up
+
+# ── 候选股池（人工种子，运行时会用行业成分数据校验/补全）────────
+# 注：仅为示例与研究对象，绝非推荐买入。代码以实际数据为准。
+candidate_pool:
+  industry_keywords: ["光模块", "光通信", "光器件"]   # 用于从行业成分自动拉取
+  seed_symbols:
+    - symbol: "300308.SZ"
+      name: "中际旭创"
+      note: "高速光模块龙头，800G 放量。（示例，非推荐）"
+    - symbol: "300502.SZ"
+      name: "新易盛"
+      note: "高速光模块，海外客户占比高。（示例，非推荐）"
+    - symbol: "300394.SZ"
+      name: "天孚通信"
+      note: "光器件平台，受益高速化。（示例，非推荐）"
+
+# ── 公司基本面打分：本主线侧重的维度（覆盖全局默认权重）─────────
+fundamental_emphasis:
+  growth: 0.30          # 营收/净利增速、增速边际变化
+  prosperity: 0.25      # 行业景气、出货/订单
+  quality: 0.15         # 毛利率、ROE、现金流
+  momentum: 0.15        # 相对行业强弱、资金流
+  valuation: 0.15       # 估值历史分位（防追高）
+
+# ── 免责声明 ───────────────────────────────────────────────────
+disclaimer: >
+  本配置仅用于研究与示例，所列公司为研究对象而非投资推荐。
+  最终结论以系统基于实时数据的计算为准，且不构成投资建议。
