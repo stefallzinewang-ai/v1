@@ -3,6 +3,6 @@
 把抽象主题落到具体股票池的产业链知识库：主题 → 环节 → 瓶颈 → 候选股。
 配置驱动（themes/*.yaml）+ 数据增强。详见 docs/methodology.md §4。
 """
-from .chain import ThemeEngine
+from .chain import ThemeEngine, ThemeActivation, CandidatePool
 
-__all__ = ["ThemeEngine"]
+__all__ = ["ThemeEngine", "ThemeActivation", "CandidatePool"]

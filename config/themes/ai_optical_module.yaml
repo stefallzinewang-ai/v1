@@ -65,7 +65,8 @@ key_variables:
 # ── 候选股池（人工种子，运行时会用行业成分数据校验/补全）────────
 # 注：仅为示例与研究对象，绝非推荐买入。代码以实际数据为准。
 candidate_pool:
-  industry_keywords: ["光模块", "光通信", "光器件"]   # 用于从行业成分自动拉取
+  industry_keywords: ["光模块", "光通信", "光器件"]   # 按成分股名称模糊匹配
+  board_codes: ["BK0457"]                            # 东方财富板块代码（示例，需用实际成分校验）
   seed_symbols:
     - symbol: "300308.SZ"
       name: "中际旭创"

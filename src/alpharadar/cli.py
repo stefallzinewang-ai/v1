@@ -142,6 +142,51 @@ def _cmd_regime(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_theme(args: argparse.Namespace) -> int:
+    """展示某条主线的收敛链：结构 → 对当前市场状态的激活判断 → 候选股池。"""
+    from .config import Settings
+    from .data.store import DataStore
+    from .theme import ThemeEngine
+
+    settings = Settings.load()
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    eng = ThemeEngine.from_id(args.theme_id)
+
+    print(f"主线：{eng.theme.name}")
+    bn = eng.bottleneck()
+    if bn:
+        print(f"瓶颈环节：{bn.get('name')} —— {bn.get('note', '')}")
+    print("关键变量：")
+    for v in eng.key_variables():
+        print(f"  · {v.get('name')}（{v.get('metric')}）")
+
+    # 对当前市场状态判断激活（景气因子未就绪 → None）
+    indices_map = settings.get("regime", "indices", default=None) or _default_indices()
+    bars = store.read_bars(symbols=list(indices_map.values()))
+    print("\n激活判断：")
+    if bars.empty:
+        print("  （本地无指数行情，先 sync 才能判断市场状态）")
+    else:
+        from .regime.detector import RegimeDetector
+
+        regime = RegimeDetector(
+            trend_ma_window=settings.get("regime", "trend_ma_window", default=200),
+            smoothing_days=settings.get("regime", "smoothing_days", default=5),
+            indices=indices_map,
+        ).detect(bars, as_of=args.as_of)
+        act = eng.evaluate(regime, industry_prosperity=args.prosperity)
+        print(f"  市场状态：{regime.key()}  →  {'✅ 激活' if act.active else '⛔ 未激活'}")
+        for r in act.reasons:
+            print(f"    {r}")
+
+    # 候选股池
+    members = store.read_table("industry")
+    pool = eng.resolve_pool(members if not members.empty else None)
+    print(f"\n候选股池（{pool.note}）：")
+    print(f"  {', '.join(pool.enriched)}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     print(
         f"[run] 主线 '{args.theme_id}' 的端到端流水线尚未实现。\n"
@@ -174,6 +219,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_regime = sub.add_parser("regime", help="判断当前市场状态（需先 sync 指数行情）")
     p_regime.add_argument("--as-of", default=None, help="指定日期 YYYY-MM-DD（默认最新）")
     p_regime.set_defaults(func=_cmd_regime)
+
+    p_theme = sub.add_parser("theme", help="展示主线收敛链：结构/激活判断/候选池")
+    p_theme.add_argument("theme_id", help="主线 id，如 ai_optical_module")
+    p_theme.add_argument("--as-of", default=None, help="指定日期 YYYY-MM-DD")
+    p_theme.add_argument("--prosperity", type=float, default=None,
+                         help="行业景气分位 0~1（阶段3前可手动传入测试）")
+    p_theme.set_defaults(func=_cmd_theme)
 
     p_run = sub.add_parser("run", help="对某条主线端到端运行（待实现）")
     p_run.add_argument("theme_id", help="主线 id")
