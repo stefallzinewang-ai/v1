@@ -176,6 +176,31 @@ class RegimeDetector:
             return None
         return sub.set_index("date")["close"]
 
+    def history(self, index_bars: "pd.DataFrame", freq: str = "ME",
+                min_history: int = 60) -> "pd.DataFrame":
+        """回放历史，按 freq（默认月末）输出市场状态时间线。
+
+        返回 [date, trend, style, risk_appetite, liquidity, key]。
+        """
+        import pandas as pd
+
+        bars = index_bars.copy()
+        bars["date"] = pd.to_datetime(bars["date"])
+        dates = pd.DatetimeIndex(sorted(bars["date"].unique()))
+        if len(dates) == 0:
+            return pd.DataFrame(columns=["date", "trend", "style", "risk_appetite",
+                                         "liquidity", "key"])
+        marks = pd.Series(1, index=dates).resample(freq).last().dropna().index
+        rows = []
+        for d in marks:
+            if (dates <= d).sum() < min_history:
+                continue
+            s = self.detect(bars, as_of=d.strftime("%Y-%m-%d"))
+            rows.append({"date": d, "trend": s.trend, "style": s.style,
+                         "risk_appetite": s.risk_appetite, "liquidity": s.liquidity,
+                         "key": s.key()})
+        return pd.DataFrame(rows)
+
     def detect(self, index_bars: "pd.DataFrame", macro: "pd.DataFrame | None" = None,
                as_of: str | None = None) -> RegimeState:
         """推断 as_of 当日的市场状态。

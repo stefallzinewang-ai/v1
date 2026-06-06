@@ -93,6 +93,24 @@ else:
     c4.metric("流动性 Liquidity", r.liquidity)
     st.caption(f"状态键：`{r.key()}`")
 
+    # 市场状态历史时间线
+    with st.expander("📈 市场状态历史时间线"):
+        from alpharadar.regime.detector import RegimeDetector, DEFAULT_INDICES
+        import pandas as _pd
+
+        idx_map = settings.get("regime", "indices", default=None) or DEFAULT_INDICES
+        idx_bars = store.read_bars(symbols=list(idx_map.values()))
+        if not idx_bars.empty:
+            hist = RegimeDetector(indices=idx_map).history(idx_bars, freq="ME")
+            if not hist.empty:
+                trend_num = {"bull": 1, "range": 0, "bear": -1}
+                chart = _pd.DataFrame(
+                    {"趋势(bull=1/bear=-1)": hist["trend"].map(trend_num).values},
+                    index=_pd.to_datetime(hist["date"]))
+                st.line_chart(chart)
+                st.dataframe(hist[["date", "trend", "style", "risk_appetite"]],
+                             width="stretch", hide_index=True)
+
 # 2) 主线激活
 st.subheader("② 主线激活判断")
 if result.activation is None:
@@ -157,11 +175,14 @@ st.subheader("⑥ 历史回测")
 st.caption("用已训练规律（或默认动量）在历史上逐期回放，统计超额 / IR / 胜率 / 回撤。"
            "⚠️ 若规律在同段历史训练，则为样本内、偏乐观。")
 if st.button("▶️ 运行回测"):
+    from pathlib import Path as _Path
+    import pandas as _pd
+
     from alpharadar.pipeline import build_panel_from_store
     from alpharadar.backtest.engine import BacktestEngine
     from alpharadar.mining.pattern_miner import PatternLibrary
-    from pathlib import Path as _Path
 
+    res, lib = None, None
     with st.spinner("回放历史中…"):
         built = build_panel_from_store(settings_for_run, store)
         if built is None or built[0].empty:
@@ -170,20 +191,21 @@ if st.button("▶️ 运行回测"):
             panel, regimes, fwd = built
             lib_path = _Path(store.root) / "patterns.json"
             lib = PatternLibrary.load(lib_path) if lib_path.exists() else None
-            res = BacktestEngine(top_k=5,
-                                 forward_days=settings.get("horizon", "forward_days",
-                                                           default=63)).run(
-                panel, regimes, fwd, pattern_lib=lib)
-    if "res" in dir() and res.n_periods > 0:
+            res = BacktestEngine(
+                top_k=5,
+                forward_days=settings.get("horizon", "forward_days", default=63),
+            ).run(panel, regimes, fwd, pattern_lib=lib)
+
+    if res is not None and res.n_periods > 0:
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("年化超额", f"{(res.annual_excess_return or 0) * 100:.1f}%")
         m2.metric("信息比率 IR", f"{res.information_ratio:.2f}")
         m3.metric("胜率", f"{(res.win_rate or 0) * 100:.0f}%")
         m4.metric("最大回撤", f"{(res.max_drawdown or 0) * 100:.1f}%")
         st.caption(f"规律来源：{'已训练规律库' if lib else '默认动量基线'}　|　{res.n_periods} 期")
-        import pandas as _pd
-        curve = _pd.DataFrame({"策略": res.equity_curve, "基准": res.benchmark_curve})
-        st.line_chart(curve)
+        st.line_chart(_pd.DataFrame({"策略": res.equity_curve, "基准": res.benchmark_curve}))
+    elif res is not None:
+        st.info("数据期数不足，无法生成回测曲线。")
 
 st.divider()
 st.caption("⚠️ 本工具仅供研究与教育，所有输出为基于数据的统计分析，"

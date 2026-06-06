@@ -115,3 +115,19 @@ def test_detector_degrades_with_only_broad():
     assert state.trend == "bull"
     assert state.style == "balanced"      # 无成长/价值指数 → 降级
     assert state.risk_appetite == "neutral"
+
+
+def test_regime_history_timeline():
+    n = 400
+    bars = pd.concat([
+        _long_bars("000300.SH", np.linspace(100, 200, n)),
+        _long_bars("399006.SZ", np.linspace(100, 180, n)),
+        _long_bars("000016.SH", np.linspace(100, 110, n)),
+        _long_bars("000852.SH", np.linspace(100, 160, n)),
+    ], ignore_index=True)
+    hist = RegimeDetector().history(bars, freq="ME", min_history=60)
+    assert not hist.empty
+    assert list(hist.columns) == ["date", "trend", "style", "risk_appetite",
+                                  "liquidity", "key"]
+    assert (hist["trend"] == "bull").any()        # 上行段应判为 bull
+    assert hist["date"].is_monotonic_increasing
