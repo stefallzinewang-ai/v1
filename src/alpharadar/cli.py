@@ -152,6 +152,10 @@ def _cmd_sync_universe(args: argparse.Namespace) -> int:
             chunk = uni[i:i + 50]
             total += ing.sync_bars(chunk, start, end)
             print(f"  进度 {min(i + 50, len(uni))}/{len(uni)}（累计 {total} 行）")
+        if args.with_financials:
+            print("采集财务（供财务因子）…")
+            n_fin = ing.sync_financials(uni, start, end)
+            print(f"  财务写入 {n_fin} 行")
     except Exception as exc:
         print(f"\n采集失败：{type(exc).__name__}: {exc}")
         print("提示：云环境数据源会被拦截，请在本地运行。")
@@ -425,6 +429,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_su.add_argument("--board", default=None, help="只采某板块代码（如 BK0457）")
     p_su.add_argument("--limit", type=int, default=None, help="限制采集数量")
     p_su.add_argument("--end", default="2025-12-31", help="采集截止 YYYY-MM-DD")
+    p_su.add_argument("--with-financials", action="store_true",
+                      help="同时采集财务（供财务因子，较慢）")
     p_su.set_defaults(func=_cmd_sync_universe)
 
     p_regime = sub.add_parser("regime", help="判断当前市场状态（需先 sync 指数行情）")
