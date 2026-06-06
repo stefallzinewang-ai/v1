@@ -112,12 +112,22 @@ pip install -r requirements.txt
 # 2. 复制配置
 cp config/settings.example.yaml config/settings.yaml
 
-# 3. 查看命令行帮助（骨架已可运行）
-python -m alpharadar.cli --help
+# 3. 采集数据（需在可访问东方财富的机器上运行）
+python -m alpharadar.cli sync ai_optical_module
+
+# 4. 端到端运行：市场状态 → 主线激活 → 选股 → 研究报告
+python -m alpharadar.cli run ai_optical_module --save
+
+# 其它：分步查看
+python -m alpharadar.cli regime                 # 当前市场状态
+python -m alpharadar.cli theme ai_optical_module  # 主线收敛链
+python -m alpharadar.cli score ai_optical_module  # 候选池基本面打分
 ```
 
-> ⚠️ 当前仓库处于**架构骨架阶段**：分层、接口、数据模型、示例配置已就位，
-> 具体的数据采集与算法实现按 [`docs/roadmap.md`](docs/roadmap.md) 分阶段填充。
+> ⚠️ **进度**：八层架构已端到端打通（数据/市场状态/主线/因子/基本面/选股/报告），
+> 可生成完整研究报告；规律挖掘(阶段5)、回测、宏观/估值/景气因子按
+> [`docs/roadmap.md`](docs/roadmap.md) 持续填充。
+> 数据采集需在可访问数据源的机器上运行（云环境白名单代理会拦截，返回 403）。
 
 ---
 

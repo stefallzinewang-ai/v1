@@ -222,11 +222,23 @@ def _cmd_score(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    print(
-        f"[run] 主线 '{args.theme_id}' 的端到端流水线尚未实现。\n"
-        "      请按 docs/roadmap.md 依次填充各层（阶段 1 起）。"
-    )
-    return 1
+    """端到端运行一条主线：市场状态→激活→候选→打分→选股→报告。"""
+    from pathlib import Path
+    from .config import Settings
+    from .pipeline import run_pipeline
+
+    settings = Settings.load()
+    result = run_pipeline(args.theme_id, as_of=args.as_of, settings=settings)
+    print(result.report)
+
+    out_dir = Path(settings.get("report", "output_dir", default="./reports/output"))
+    if args.save:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        stamp = (args.as_of or "latest").replace("-", "")
+        path = out_dir / f"{args.theme_id}_{stamp}.md"
+        path.write_text(result.report, encoding="utf-8")
+        print(f"\n（报告已保存到 {path}）")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -266,8 +278,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_score.add_argument("--as-of", default=None, help="point-in-time 日期 YYYY-MM-DD")
     p_score.set_defaults(func=_cmd_score)
 
-    p_run = sub.add_parser("run", help="对某条主线端到端运行（待实现）")
-    p_run.add_argument("theme_id", help="主线 id")
+    p_run = sub.add_parser("run", help="端到端运行：市场状态→激活→选股→报告")
+    p_run.add_argument("theme_id", help="主线 id，如 ai_optical_module")
+    p_run.add_argument("--as-of", default=None, help="point-in-time 日期 YYYY-MM-DD")
+    p_run.add_argument("--save", action="store_true", help="同时把报告保存到 reports/output")
     p_run.set_defaults(func=_cmd_run)
 
     return parser
