@@ -262,34 +262,17 @@ def _cmd_mine(args: argparse.Namespace) -> int:
     from pathlib import Path
     from .config import Settings
     from .data.store import DataStore
-    from .regime.detector import RegimeDetector, DEFAULT_INDICES
-    from .mining.panel import build_training_panel
     from .mining.pattern_miner import PatternMiner
 
     settings = Settings.load()
     store = DataStore(root=settings.get("storage", "root", default="./data_store"))
-    indices_map = settings.get("regime", "indices", default=None) or DEFAULT_INDICES
-    index_syms = set(indices_map.values())
-
-    all_bars = store.read_bars()
-    if all_bars.empty:
+    from .pipeline import build_panel_from_store
+    built = build_panel_from_store(settings, store)
+    if built is None:
         print("本地无行情。请先 sync 一批股票与指数的历史行情。")
         return 1
-    from .data import schema as S
-    idx_set = {S.normalize_symbol(s) for s in index_syms}
-    index_bars = all_bars[all_bars["symbol"].isin(idx_set)]
-    stock_bars = all_bars[~all_bars["symbol"].isin(idx_set)]
-    if stock_bars["symbol"].nunique() < 5:
-        print(f"股票数偏少（{stock_bars['symbol'].nunique()} 只），规律挖掘需要更大的股票池。")
-
-    detector = RegimeDetector(
-        trend_ma_window=settings.get("regime", "trend_ma_window", default=200),
-        smoothing_days=settings.get("regime", "smoothing_days", default=5),
-        indices=indices_map)
     print("构建训练面板…")
-    panel, regimes, fwd = build_training_panel(
-        stock_bars, index_bars, detector,
-        forward_days=settings.get("horizon", "forward_days", default=63))
+    panel, regimes, fwd = built
     if panel.empty:
         print("历史不足以构建训练面板（需更长的行情）。")
         return 1
@@ -305,6 +288,48 @@ def _cmd_mine(args: argparse.Namespace) -> int:
     for rk, p in lib.patterns.items():
         oos = "—" if p.out_sample_ic is None else f"{p.out_sample_ic:>10.3f}"
         print(f"{rk:<24}{p.in_sample_ic:>10.3f}{oos:>10}{p.n_obs:>8}")
+    return 0
+
+
+def _cmd_backtest(args: argparse.Namespace) -> int:
+    """回测：用已训练规律（或默认动量）在历史上回放，统计超额/胜率/回撤。"""
+    from pathlib import Path
+    from .config import Settings
+    from .data.store import DataStore
+    from .backtest.engine import BacktestEngine
+    from .mining.pattern_miner import PatternLibrary
+
+    settings = Settings.load()
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    from .pipeline import build_panel_from_store
+    built = build_panel_from_store(settings, store)
+    if built is None:
+        print("本地无行情。请先 sync 或 demo。")
+        return 1
+    panel, regimes, fwd = built
+    if panel.empty:
+        print("历史不足以回测（需更长的行情）。")
+        return 1
+
+    lib_path = Path(store.root) / "patterns.json"
+    lib = PatternLibrary.load(lib_path) if lib_path.exists() else None
+    res = BacktestEngine(
+        top_k=args.top_k,
+        forward_days=settings.get("horizon", "forward_days", default=63),
+    ).run(panel, regimes, fwd, pattern_lib=lib)
+
+    print("规律来源：" + ("已训练规律库 patterns.json" if lib else "默认动量基线"))
+    print(res.summary())
+    if res.by_regime:
+        print("\n分市场状态超额：")
+        for rk, st in res.by_regime.items():
+            print(f"  {rk:<24} 期数 {st['n']:>3}  平均超额 {st['excess_mean'] * 100:+.2f}%")
+    if args.save and res.periods is not None:
+        out = Path(settings.get("report", "output_dir", default="./reports/output"))
+        out.mkdir(parents=True, exist_ok=True)
+        path = out / "backtest_periods.csv"
+        res.periods.to_csv(path)
+        print(f"\n（每期明细已保存到 {path}）")
     return 0
 
 
@@ -373,6 +398,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_mine = sub.add_parser("mine", help="从历史行情训练不同市场状态下的上涨规律")
     p_mine.set_defaults(func=_cmd_mine)
+
+    p_bt = sub.add_parser("backtest", help="回测：历史回放统计超额/胜率/回撤")
+    p_bt.add_argument("--top-k", type=int, default=5, help="每期持有股票数")
+    p_bt.add_argument("--save", action="store_true", help="保存每期明细 CSV")
+    p_bt.set_defaults(func=_cmd_backtest)
 
     p_run = sub.add_parser("run", help="端到端运行：市场状态→激活→选股→报告")
     p_run.add_argument("theme_id", help="主线 id，如 ai_optical_module")

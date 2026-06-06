@@ -152,6 +152,39 @@ with st.expander("查看 / 下载完整 Markdown 报告", expanded=False):
 st.download_button("⬇️ 下载报告（.md）", data=result.report,
                    file_name=f"{theme_id}_{as_of}.md", mime="text/markdown")
 
+# 6) 历史回测
+st.subheader("⑥ 历史回测")
+st.caption("用已训练规律（或默认动量）在历史上逐期回放，统计超额 / IR / 胜率 / 回撤。"
+           "⚠️ 若规律在同段历史训练，则为样本内、偏乐观。")
+if st.button("▶️ 运行回测"):
+    from alpharadar.pipeline import build_panel_from_store
+    from alpharadar.backtest.engine import BacktestEngine
+    from alpharadar.mining.pattern_miner import PatternLibrary
+    from pathlib import Path as _Path
+
+    with st.spinner("回放历史中…"):
+        built = build_panel_from_store(settings_for_run, store)
+        if built is None or built[0].empty:
+            st.warning("历史不足以回测（需更长/更多的行情，或先加载演示数据）。")
+        else:
+            panel, regimes, fwd = built
+            lib_path = _Path(store.root) / "patterns.json"
+            lib = PatternLibrary.load(lib_path) if lib_path.exists() else None
+            res = BacktestEngine(top_k=5,
+                                 forward_days=settings.get("horizon", "forward_days",
+                                                           default=63)).run(
+                panel, regimes, fwd, pattern_lib=lib)
+    if "res" in dir() and res.n_periods > 0:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("年化超额", f"{(res.annual_excess_return or 0) * 100:.1f}%")
+        m2.metric("信息比率 IR", f"{res.information_ratio:.2f}")
+        m3.metric("胜率", f"{(res.win_rate or 0) * 100:.0f}%")
+        m4.metric("最大回撤", f"{(res.max_drawdown or 0) * 100:.1f}%")
+        st.caption(f"规律来源：{'已训练规律库' if lib else '默认动量基线'}　|　{res.n_periods} 期")
+        import pandas as _pd
+        curve = _pd.DataFrame({"策略": res.equity_curve, "基准": res.benchmark_curve})
+        st.line_chart(curve)
+
 st.divider()
 st.caption("⚠️ 本工具仅供研究与教育，所有输出为基于数据的统计分析，"
            "不构成任何投资建议。股市有风险，决策与盈亏自负。")

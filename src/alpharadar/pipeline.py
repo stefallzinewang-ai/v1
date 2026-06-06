@@ -30,6 +30,29 @@ class PipelineResult:
     report: str = ""
 
 
+def build_panel_from_store(settings: Settings, store: DataStore):
+    """从本地行情切分股票/指数并构建训练面板（mine / backtest / UI 共用）。
+
+    返回 (factor_panel, regime_series, forward_returns)；本地无行情时返回 None。
+    """
+    from .data import schema as S
+    from .mining.panel import build_training_panel
+
+    indices_map = settings.get("regime", "indices", default=None) or DEFAULT_INDICES
+    all_bars = store.read_bars()
+    if all_bars.empty:
+        return None
+    idx_set = {S.normalize_symbol(s) for s in indices_map.values()}
+    index_bars = all_bars[all_bars["symbol"].isin(idx_set)]
+    stock_bars = all_bars[~all_bars["symbol"].isin(idx_set)]
+    detector = RegimeDetector(
+        trend_ma_window=settings.get("regime", "trend_ma_window", default=200),
+        smoothing_days=settings.get("regime", "smoothing_days", default=5),
+        indices=indices_map)
+    return build_training_panel(stock_bars, index_bars, detector,
+                                forward_days=settings.get("horizon", "forward_days", default=63))
+
+
 def _seed_names(eng: ThemeEngine) -> dict[str, str]:
     from .data import schema as S
 
