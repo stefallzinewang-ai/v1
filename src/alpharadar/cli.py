@@ -187,6 +187,40 @@ def _cmd_theme(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_score(args: argparse.Namespace) -> int:
+    """对某条主线候选池按基本面打分排序（读本地已采集的财务数据）。"""
+    from .config import Settings
+    from .data.store import DataStore
+    from .theme import ThemeEngine
+    from .fundamental.scorer import FundamentalScorer
+
+    settings = Settings.load()
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    eng = ThemeEngine.from_id(args.theme_id)
+
+    fin = store.read_table("financials")
+    if fin.empty:
+        print("本地无财务数据。请先运行：python -m alpharadar.cli sync <theme>")
+        return 1
+
+    industry = store.read_table("industry")
+    pool = set(eng.resolve_pool(industry if not industry.empty else None).enriched)
+    fin = fin[fin["symbol"].isin(pool)]
+
+    scorer = FundamentalScorer(emphasis=eng.fundamental_emphasis())
+    result = scorer.score(fin, as_of=args.as_of or "2025-12-31")
+    if result.empty:
+        print("候选池内无可用财务数据（可能公告日晚于 as-of）。")
+        return 1
+
+    print(f"主线 '{eng.theme.name}' 候选池基本面打分（as_of={args.as_of or '2025-12-31'}）：\n")
+    print(f"{'代码':<12}{'报告期':<12}{'成长':>8}{'质量':>8}{'总分':>8}")
+    for sym, row in result.iterrows():
+        print(f"{sym:<12}{str(row['report_period']):<12}"
+              f"{row['growth']:>8.2f}{row['quality']:>8.2f}{row['total']:>8.2f}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     print(
         f"[run] 主线 '{args.theme_id}' 的端到端流水线尚未实现。\n"
@@ -226,6 +260,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_theme.add_argument("--prosperity", type=float, default=None,
                          help="行业景气分位 0~1（阶段3前可手动传入测试）")
     p_theme.set_defaults(func=_cmd_theme)
+
+    p_score = sub.add_parser("score", help="对主线候选池按基本面打分排序（需先 sync 财务）")
+    p_score.add_argument("theme_id", help="主线 id，如 ai_optical_module")
+    p_score.add_argument("--as-of", default=None, help="point-in-time 日期 YYYY-MM-DD")
+    p_score.set_defaults(func=_cmd_score)
 
     p_run = sub.add_parser("run", help="对某条主线端到端运行（待实现）")
     p_run.add_argument("theme_id", help="主线 id")
