@@ -136,6 +136,20 @@ class EastmoneySource(DataSource):
         }
         return parse_clist_members(self.http.get_json(CLIST_URL, params), industry)
 
+    def stock_universe(self, max_count: int = 6000) -> pd.DataFrame:
+        """全 A 股列表（沪深京），仅含代码与名称。用于规律挖掘/回测的股票池。
+
+        fs 用空格分隔（requests 会把空格编码为 '+'，正是东方财富所需格式）。
+        ⚠️ 该接口需在可访问东方财富的机器上验证；解析复用已测的 clist 解析器。
+        """
+        fs = "m:0 t:6,m:0 t:80,m:1 t:2,m:1 t:23,m:0 t:81 s:2048"
+        params = {
+            "pn": 1, "pz": max_count, "po": 1, "np": 1, "fltt": 2, "invt": 2,
+            "fs": fs, "fields": "f12,f14",
+        }
+        df = parse_clist_members(self.http.get_json(CLIST_URL, params), "")
+        return df[["symbol", "name"]]
+
     def financials(self, symbols: Sequence[str], start: str, end: str) -> pd.DataFrame:
         cols = ("SECURITY_CODE,REPORT_DATE,NOTICE_DATE,TOTAL_OPERATE_INCOME,"
                 "YSTZ,PARENT_NETPROFIT,SJLTZ,XSMLL,WEIGHTAVG_ROE,MGJYXJJE")

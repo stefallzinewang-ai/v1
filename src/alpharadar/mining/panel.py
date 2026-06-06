@@ -29,12 +29,31 @@ def price_factors(close_wide: "pd.DataFrame") -> dict[str, "pd.DataFrame"]:
     }
 
 
+_FIN_FACTORS = ["revenue_yoy", "net_profit_yoy", "gross_margin", "roe"]
+
+
+def _attach_financials(factor_panel: "pd.DataFrame", financials: "pd.DataFrame") -> "pd.DataFrame":
+    """把财务因子按 point-in-time（ann_date<=调仓日的最新一期）并入因子面板。"""
+    import pandas as pd
+
+    fin = financials.copy()
+    fin["ann_date"] = pd.to_datetime(fin["ann_date"])
+    keep = ["ann_date", "symbol"] + [c for c in _FIN_FACTORS if c in fin.columns]
+    fin = fin[keep].dropna(subset=["ann_date"]).sort_values("ann_date")
+    left = factor_panel.sort_values("date")
+    merged = pd.merge_asof(left, fin, left_on="date", right_on="ann_date",
+                           by="symbol", direction="backward")
+    return merged.drop(columns=["ann_date"], errors="ignore")
+
+
 def build_training_panel(bars: "pd.DataFrame", index_bars: "pd.DataFrame",
                          detector: "RegimeDetector", forward_days: int = 63,
-                         rebalance_freq: str = "ME", min_history: int = 252):
+                         rebalance_freq: str = "ME", min_history: int = 252,
+                         financials: "pd.DataFrame | None" = None):
     """组装训练三表。
 
     bars/index_bars：长表（列同 bars schema，至少含 symbol,date,close）。
+    financials：可选，含财务因子，按 ann_date 做 point-in-time 对齐并入。
     rebalance_freq：调仓频率（pandas 频率别名，'ME'=月末）。
     """
     import pandas as pd
@@ -68,6 +87,10 @@ def build_training_panel(bars: "pd.DataFrame", index_bars: "pd.DataFrame",
     factor_panel = panel_rows[0]
     for extra in panel_rows[1:]:
         factor_panel = factor_panel.merge(extra, on=["date", "symbol"], how="outer")
+
+    # 可选：并入 point-in-time 财务因子（成长/质量）
+    if financials is not None and len(financials) > 0:
+        factor_panel = _attach_financials(factor_panel, financials)
 
     # forward_returns
     fsub = fwd.loc[fwd.index.isin(rebal_dates)]

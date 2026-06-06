@@ -113,6 +113,53 @@ def _default_indices() -> dict:
     return DEFAULT_INDICES
 
 
+def _cmd_sync_universe(args: argparse.Namespace) -> int:
+    """采集一大批股票的历史行情（供规律挖掘/回测）。
+
+    --board 指定板块代码（如 BK0457）只采该板块；否则采全 A 股（可 --limit 限量）。
+    需在可访问东方财富的机器上运行。
+    """
+    from .config import Settings
+    from .data.sources.eastmoney_source import EastmoneySource
+    from .data.store import DataStore
+    from .data.ingest import Ingestor
+
+    settings = Settings.load()
+    source = EastmoneySource(
+        rate_limit_per_min=settings.get("data_source", "rate_limit_per_min", default=60),
+        max_retries=settings.get("data_source", "max_retries", default=4))
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    ing = Ingestor(source, store)
+    start = settings.get("universe", "start", default="2010-01-01")
+    end, indices = args.end, list(_default_indices().values())
+
+    try:
+        if args.board:
+            uni = source.industry_members(args.board)["symbol"].tolist()
+            print(f"板块 {args.board} 成分股 {len(uni)} 只")
+        else:
+            uni = source.stock_universe()["symbol"].tolist()
+            print(f"全 A 股 {len(uni)} 只")
+        if args.limit:
+            uni = uni[:args.limit]
+            print(f"限量至前 {len(uni)} 只")
+
+        print("采集指数…")
+        ing.sync_indices(indices, start, end)
+        print(f"采集 {len(uni)} 只股票行情（{start} ~ {end}）…")
+        total = 0
+        for i in range(0, len(uni), 50):
+            chunk = uni[i:i + 50]
+            total += ing.sync_bars(chunk, start, end)
+            print(f"  进度 {min(i + 50, len(uni))}/{len(uni)}（累计 {total} 行）")
+    except Exception as exc:
+        print(f"\n采集失败：{type(exc).__name__}: {exc}")
+        print("提示：云环境数据源会被拦截，请在本地运行。")
+        return 1
+    print(f"\n完成。可继续：python -m alpharadar.cli mine && ... backtest")
+    return 0
+
+
 def _cmd_regime(args: argparse.Namespace) -> int:
     """读取本地已采集的指数行情，判断并打印当前市场状态。"""
     from .config import Settings
@@ -373,6 +420,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("theme_id", help="主线 id，如 ai_optical_module")
     p_sync.add_argument("--end", default="2025-12-31", help="采集截止日期 YYYY-MM-DD")
     p_sync.set_defaults(func=_cmd_sync)
+
+    p_su = sub.add_parser("sync-universe", help="采集一大批股票行情（供挖掘/回测）")
+    p_su.add_argument("--board", default=None, help="只采某板块代码（如 BK0457）")
+    p_su.add_argument("--limit", type=int, default=None, help="限制采集数量")
+    p_su.add_argument("--end", default="2025-12-31", help="采集截止 YYYY-MM-DD")
+    p_su.set_defaults(func=_cmd_sync_universe)
 
     p_regime = sub.add_parser("regime", help="判断当前市场状态（需先 sync 指数行情）")
     p_regime.add_argument("--as-of", default=None, help="指定日期 YYYY-MM-DD（默认最新）")

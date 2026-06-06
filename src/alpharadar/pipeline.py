@@ -49,8 +49,11 @@ def build_panel_from_store(settings: Settings, store: DataStore):
         trend_ma_window=settings.get("regime", "trend_ma_window", default=200),
         smoothing_days=settings.get("regime", "smoothing_days", default=5),
         indices=indices_map)
-    return build_training_panel(stock_bars, index_bars, detector,
-                                forward_days=settings.get("horizon", "forward_days", default=63))
+    fin = store.read_table("financials")
+    return build_training_panel(
+        stock_bars, index_bars, detector,
+        forward_days=settings.get("horizon", "forward_days", default=63),
+        financials=fin if not fin.empty else None)
 
 
 def _seed_names(eng: ThemeEngine) -> dict[str, str]:

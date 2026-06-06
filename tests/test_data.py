@@ -71,6 +71,17 @@ def test_parse_clist_members():
     assert (df["industry_code"] == "BK0457").all()
 
 
+def test_stock_universe_parses_without_network():
+    from alpharadar.data.sources.eastmoney_source import EastmoneySource
+
+    src = EastmoneySource()
+    # 拦截 HTTP，喂入 clist 样本，验证 universe 返回代码/名称
+    src.http.get_json = lambda url, params=None: _load("eastmoney_clist.json")
+    uni = src.stock_universe()
+    assert list(uni.columns) == ["symbol", "name"]
+    assert "300308.SZ" in set(uni["symbol"])
+
+
 def test_parse_financials_has_ann_date():
     df = parse_financials(_load("eastmoney_financials.json"))
     assert list(df.columns) == S.FINANCIALS_COLUMNS

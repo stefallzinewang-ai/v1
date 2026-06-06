@@ -59,6 +59,33 @@ def test_build_training_panel_structure():
     assert isinstance(lib, PatternLibrary)
 
 
+def test_build_panel_attaches_financials_point_in_time():
+    n = 400
+    universe = pd.concat([_bars(f"{600000+i}.SH",
+                                np.linspace(100, 100 + i, n)) for i in range(6)],
+                         ignore_index=True)
+    index_bars = pd.concat([
+        _bars("000300.SH", np.linspace(100, 160, n)),
+        _bars("399006.SZ", np.linspace(100, 150, n)),
+        _bars("000016.SH", np.linspace(100, 110, n)),
+        _bars("000852.SH", np.linspace(100, 140, n)),
+    ], ignore_index=True)
+    fin = pd.DataFrame([
+        ("600000.SH", "2021-12-31", "2022-04-15", 100, 30, 20, 40, 30.0, 12.0, 1.0),
+        ("600001.SH", "2021-12-31", "2022-04-20", 80, 5, 8, 6, 20.0, 5.0, 0.3),
+    ], columns=["symbol", "report_period", "ann_date", "revenue", "revenue_yoy",
+                "net_profit", "net_profit_yoy", "gross_margin", "roe", "ocf"])
+    panel, regimes, fwd = build_training_panel(universe, index_bars, RegimeDetector(),
+                                               forward_days=21, min_history=120,
+                                               financials=fin)
+    # 财务因子列已并入
+    assert "revenue_yoy" in panel.columns and "roe" in panel.columns
+    # point-in-time：公告日(2022-04)之前的调仓日，财务应为空（无未来函数）
+    early = panel[(panel["symbol"] == "600000.SH") & (panel["date"] < "2022-04-15")]
+    if not early.empty:
+        assert early["revenue_yoy"].isna().all()
+
+
 def test_pattern_library_integration_in_pipeline(tmp_path):
     """放一个规律库到 store，run 流水线应在候选 breakdown 里出现「规律信号」alpha。"""
     from alpharadar.config import Settings
