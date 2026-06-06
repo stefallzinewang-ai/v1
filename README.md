@@ -112,17 +112,32 @@ pip install -r requirements.txt
 # 2. 复制配置
 cp config/settings.example.yaml config/settings.yaml
 
-# 3. 采集数据（需在可访问东方财富的机器上运行）
+# 3. 离线体验：灌入演示数据 + 打开图形界面
+python -m alpharadar.cli demo      # 生成合成演示数据
+python -m alpharadar.cli ui        # 浏览器打开研究面板（Streamlit）
+
+# 或采集真实数据（需在可访问东方财富的机器上运行）
 python -m alpharadar.cli sync ai_optical_module
 
-# 4. 端到端运行：市场状态 → 主线激活 → 选股 → 研究报告
+# 命令行端到端：市场状态 → 主线激活 → 选股 → 研究报告
 python -m alpharadar.cli run ai_optical_module --save
 
 # 其它：分步查看
 python -m alpharadar.cli regime                 # 当前市场状态
 python -m alpharadar.cli theme ai_optical_module  # 主线收敛链
 python -m alpharadar.cli score ai_optical_module  # 候选池基本面打分
+python -m alpharadar.cli mine                     # 训练市场状态规律
 ```
+
+### 图形界面
+
+```
+python -m alpharadar.cli demo && python -m alpharadar.cli ui
+```
+
+浏览器打开后（默认 http://localhost:8501）即是研究面板：左侧选主线/时点/候选数，
+右侧依次展示 **市场状态 → 主线激活 → 瓶颈环节 → 候选公司（含分项得分柱状图与理由）
+→ 可下载的研究报告**。点侧边栏「🎲 加载演示数据」可在无网络环境直接体验全流程。
 
 > ⚠️ **进度**：八层架构已端到端打通（数据/市场状态/主线/因子/基本面/选股/报告），
 > 可生成完整研究报告；规律挖掘(阶段5)、回测、宏观/估值/景气因子按

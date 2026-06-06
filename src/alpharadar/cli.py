@@ -221,6 +221,39 @@ def _cmd_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_demo(args: argparse.Namespace) -> int:
+    """灌入合成演示数据，便于离线体验完整流程与界面。"""
+    from .config import Settings
+    from .data.store import DataStore
+    from .demo import seed_demo_store
+
+    settings = Settings.load()
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    info = seed_demo_store(store)
+    print(f"已灌入演示数据：{info['rows']} 行行情（指数 {info['indices']} + "
+          f"候选 {info['candidates']} + 池 {info['universe']}），"
+          f"财务 {info['financial_rows']} 行。")
+    print("现在可以试：python -m alpharadar.cli run ai_optical_module")
+    print("或打开界面：python -m alpharadar.cli ui")
+    return 0
+
+
+def _cmd_ui(args: argparse.Namespace) -> int:
+    """启动图形界面（Streamlit）。"""
+    import subprocess
+    from pathlib import Path
+
+    app = Path(__file__).resolve().parents[2] / "app.py"
+    try:
+        import streamlit  # noqa: F401
+    except ImportError:
+        print("未安装 streamlit。请先：pip install streamlit")
+        return 1
+    print(f"启动界面：streamlit run {app}")
+    return subprocess.call(["streamlit", "run", str(app),
+                            "--server.port", str(args.port)])
+
+
 def _cmd_mine(args: argparse.Namespace) -> int:
     """从本地行情训练「不同市场状态下的上涨规律」并保存规律库。
 
@@ -331,6 +364,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_score.add_argument("theme_id", help="主线 id，如 ai_optical_module")
     p_score.add_argument("--as-of", default=None, help="point-in-time 日期 YYYY-MM-DD")
     p_score.set_defaults(func=_cmd_score)
+
+    sub.add_parser("demo", help="灌入合成演示数据（离线体验全流程）").set_defaults(func=_cmd_demo)
+
+    p_ui = sub.add_parser("ui", help="启动图形界面（Streamlit）")
+    p_ui.add_argument("--port", type=int, default=8501, help="端口（默认 8501）")
+    p_ui.set_defaults(func=_cmd_ui)
 
     p_mine = sub.add_parser("mine", help="从历史行情训练不同市场状态下的上涨规律")
     p_mine.set_defaults(func=_cmd_mine)
