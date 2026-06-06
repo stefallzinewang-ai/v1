@@ -64,6 +64,18 @@ def test_backtest_no_edge_when_factor_useless():
     assert res.n_periods > 0
     assert abs(res.annual_excess_return) < 0.15   # 没有稳定 edge
 
+def test_backtest_walk_forward_is_out_of_sample():
+    # 信号平稳存在 → 每期只用过去重训，仍应跑赢基准（真·样本外）
+    panel, regime, fwd = _world(n_dates=80, signal=0.85, seed=7)
+    res = BacktestEngine(top_k=5, forward_days=21,
+                         walk_forward=True, min_train=40).run(panel, regime, fwd)
+    assert res.n_periods > 0
+    assert res.annual_excess_return > 0
+    # 预热期：早期没有足够历史，回测期数应少于全样本
+    res_full = BacktestEngine(top_k=5, forward_days=21).run(panel, regime, fwd)
+    assert res.n_periods <= res_full.n_periods
+
+
 def test_backtest_default_baseline_runs():
     panel, regime, fwd = _world(signal=0.6)
     res = BacktestEngine(top_k=5, forward_days=21).run(panel, regime, fwd)  # 无 pattern → 默认动量

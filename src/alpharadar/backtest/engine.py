@@ -55,9 +55,12 @@ def _max_drawdown(equity: "pd.Series") -> float:
 class BacktestEngine:
     """事件回放回测器。"""
 
-    def __init__(self, top_k: int = 5, forward_days: int = 63) -> None:
+    def __init__(self, top_k: int = 5, forward_days: int = 63,
+                 walk_forward: bool = False, min_train: int = 50) -> None:
         self.top_k = top_k
         self.forward_days = forward_days
+        self.walk_forward = walk_forward   # True=每期只用过去重训（真·样本外）
+        self.min_train = min_train
 
     def run(self, factor_panel: "pd.DataFrame", regime_series: "pd.DataFrame",
             forward_returns: "pd.DataFrame",
@@ -67,12 +70,13 @@ class BacktestEngine:
         """回放回测。
 
         三表同 mining 的输入（point-in-time）。打分优先级：
-            score_fn(date, regime_key, factors_df) > pattern_lib[regime] > 默认 mom_63。
+            walk_forward（每期用过去重训）> score_fn > pattern_lib[regime] > 默认 mom_63。
         """
         import numpy as np
         import pandas as pd
 
         from ..factors.library import standardize
+        from ..mining.pattern_miner import _train_weights, Pattern
 
         if factor_cols is None:
             factor_cols = [c for c in factor_panel.columns if c not in ("date", "symbol")]
@@ -91,6 +95,14 @@ class BacktestEngine:
 
         def _score(date, rk, g: "pd.DataFrame") -> "pd.Series":
             fv = g.set_index("symbol")[factor_cols]
+            if self.walk_forward:
+                # 只用「收益已实现」的历史（date <= 当前 - 前瞻期）按同状态重训
+                cutoff = pd.Timestamp(date) - pd.Timedelta(days=int(self.forward_days * 1.6))
+                past = merged[(merged["date"] <= cutoff) & (merged["regime_key"] == rk)]
+                if len(past) < self.min_train:
+                    return pd.Series(dtype=float)   # 历史不足，跳过该期
+                w = _train_weights(past, factor_cols, "fwd_ret")
+                return Pattern(regime_key=rk, weights=w).score(fv)
             if score_fn is not None:
                 return score_fn(date, rk, fv)
             if pattern_lib is not None:

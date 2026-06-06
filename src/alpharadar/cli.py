@@ -367,9 +367,14 @@ def _cmd_backtest(args: argparse.Namespace) -> int:
     res = BacktestEngine(
         top_k=args.top_k,
         forward_days=settings.get("horizon", "forward_days", default=63),
+        walk_forward=args.walk_forward,
     ).run(panel, regimes, fwd, pattern_lib=lib)
 
-    print("规律来源：" + ("已训练规律库 patterns.json" if lib else "默认动量基线"))
+    if args.walk_forward:
+        print("规律来源：每期滚动重训（真·样本外）")
+    else:
+        print("规律来源：" + ("已训练规律库 patterns.json（样本内）" if lib
+                            else "默认动量基线"))
     print(res.summary())
     if res.by_regime:
         print("\n分市场状态超额：")
@@ -460,6 +465,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bt = sub.add_parser("backtest", help="回测：历史回放统计超额/胜率/回撤")
     p_bt.add_argument("--top-k", type=int, default=5, help="每期持有股票数")
+    p_bt.add_argument("--walk-forward", action="store_true",
+                      help="每期滚动重训（真·样本外，更可信但更慢）")
     p_bt.add_argument("--save", action="store_true", help="保存每期明细 CSV")
     p_bt.set_defaults(func=_cmd_backtest)
 

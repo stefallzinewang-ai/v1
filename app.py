@@ -172,8 +172,8 @@ st.download_button("⬇️ 下载报告（.md）", data=result.report,
 
 # 6) 历史回测
 st.subheader("⑥ 历史回测")
-st.caption("用已训练规律（或默认动量）在历史上逐期回放，统计超额 / IR / 胜率 / 回撤。"
-           "⚠️ 若规律在同段历史训练，则为样本内、偏乐观。")
+st.caption("用已训练规律（或默认动量）在历史上逐期回放，统计超额 / IR / 胜率 / 回撤。")
+wf = st.checkbox("滚动重训（真·样本外，更可信但更慢）", value=False)
 if st.button("▶️ 运行回测"):
     from pathlib import Path as _Path
     import pandas as _pd
@@ -194,6 +194,7 @@ if st.button("▶️ 运行回测"):
             res = BacktestEngine(
                 top_k=5,
                 forward_days=settings.get("horizon", "forward_days", default=63),
+                walk_forward=wf,
             ).run(panel, regimes, fwd, pattern_lib=lib)
 
     if res is not None and res.n_periods > 0:
@@ -202,7 +203,8 @@ if st.button("▶️ 运行回测"):
         m2.metric("信息比率 IR", f"{res.information_ratio:.2f}")
         m3.metric("胜率", f"{(res.win_rate or 0) * 100:.0f}%")
         m4.metric("最大回撤", f"{(res.max_drawdown or 0) * 100:.1f}%")
-        st.caption(f"规律来源：{'已训练规律库' if lib else '默认动量基线'}　|　{res.n_periods} 期")
+        src = "每期滚动重训(样本外)" if wf else ("已训练规律库(样本内)" if lib else "默认动量基线")
+        st.caption(f"规律来源：{src}　|　{res.n_periods} 期")
         st.line_chart(_pd.DataFrame({"策略": res.equity_curve, "基准": res.benchmark_curve}))
     elif res is not None:
         st.info("数据期数不足，无法生成回测曲线。")
