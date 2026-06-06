@@ -221,6 +221,60 @@ def _cmd_score(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mine(args: argparse.Namespace) -> int:
+    """从本地行情训练「不同市场状态下的上涨规律」并保存规律库。
+
+    需要先 sync 一批股票与指数的历史行情（越多越久越好）。
+    """
+    from pathlib import Path
+    from .config import Settings
+    from .data.store import DataStore
+    from .regime.detector import RegimeDetector, DEFAULT_INDICES
+    from .mining.panel import build_training_panel
+    from .mining.pattern_miner import PatternMiner
+
+    settings = Settings.load()
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    indices_map = settings.get("regime", "indices", default=None) or DEFAULT_INDICES
+    index_syms = set(indices_map.values())
+
+    all_bars = store.read_bars()
+    if all_bars.empty:
+        print("本地无行情。请先 sync 一批股票与指数的历史行情。")
+        return 1
+    from .data import schema as S
+    idx_set = {S.normalize_symbol(s) for s in index_syms}
+    index_bars = all_bars[all_bars["symbol"].isin(idx_set)]
+    stock_bars = all_bars[~all_bars["symbol"].isin(idx_set)]
+    if stock_bars["symbol"].nunique() < 5:
+        print(f"股票数偏少（{stock_bars['symbol'].nunique()} 只），规律挖掘需要更大的股票池。")
+
+    detector = RegimeDetector(
+        trend_ma_window=settings.get("regime", "trend_ma_window", default=200),
+        smoothing_days=settings.get("regime", "smoothing_days", default=5),
+        indices=indices_map)
+    print("构建训练面板…")
+    panel, regimes, fwd = build_training_panel(
+        stock_bars, index_bars, detector,
+        forward_days=settings.get("horizon", "forward_days", default=63))
+    if panel.empty:
+        print("历史不足以构建训练面板（需更长的行情）。")
+        return 1
+
+    print(f"训练中（调仓点 {regimes.shape[0]}，观测 {fwd.shape[0]}）…")
+    lib = PatternMiner(forward_days=settings.get("horizon", "forward_days", default=63)).fit(
+        panel, regimes, fwd)
+    path = Path(store.root) / "patterns.json"
+    lib.save(path)
+
+    print(f"\n已学得 {len(lib.patterns)} 个市场状态的规律 → {path}\n")
+    print(f"{'市场状态':<24}{'样本内IC':>10}{'样本外IC':>10}{'观测':>8}")
+    for rk, p in lib.patterns.items():
+        oos = "—" if p.out_sample_ic is None else f"{p.out_sample_ic:>10.3f}"
+        print(f"{rk:<24}{p.in_sample_ic:>10.3f}{oos:>10}{p.n_obs:>8}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     """端到端运行一条主线：市场状态→激活→候选→打分→选股→报告。"""
     from pathlib import Path
@@ -277,6 +331,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_score.add_argument("theme_id", help="主线 id，如 ai_optical_module")
     p_score.add_argument("--as-of", default=None, help="point-in-time 日期 YYYY-MM-DD")
     p_score.set_defaults(func=_cmd_score)
+
+    p_mine = sub.add_parser("mine", help="从历史行情训练不同市场状态下的上涨规律")
+    p_mine.set_defaults(func=_cmd_mine)
 
     p_run = sub.add_parser("run", help="端到端运行：市场状态→激活→选股→报告")
     p_run.add_argument("theme_id", help="主线 id，如 ai_optical_module")

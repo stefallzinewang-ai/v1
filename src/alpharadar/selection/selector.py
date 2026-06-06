@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 _DIM_LABELS = {
     "growth": "成长", "quality": "质量", "momentum": "动量",
     "valuation": "估值", "prosperity": "景气", "theme_fit": "主线契合",
+    "alpha": "规律信号",
 }
 
 

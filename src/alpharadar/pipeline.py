@@ -86,12 +86,20 @@ def run_pipeline(theme_id: str, as_of: str | None = None,
             mom = standardize(mom_raw)
             dims["momentum"] = mom.reindex(fund.index).fillna(0.0) if not fund.empty else mom
 
+    weights = dict(eng.fundamental_emphasis())
+
+    # 4b) 若存在已训练的规律库，且当前状态有 Pattern，则叠加「规律信号」维度
+    alpha = _pattern_alpha(store, regime, cand_bars, as_of)
+    if alpha is not None and not alpha.empty:
+        idx = fund.index if not fund.empty else alpha.index
+        dims["alpha"] = alpha.reindex(idx).fillna(0.0)
+        weights["alpha"] = max(weights.values(), default=0.3)  # 学到的信号给显著权重
+
     # 5) 融合选股
     candidates: list = []
     if dims:
         candidates = Selector(top_n=settings.get("selection", "top_n", default=2)).select(
-            dims, weights=eng.fundamental_emphasis(),
-            names=_seed_names(eng), periods=periods)
+            dims, weights=weights, names=_seed_names(eng), periods=periods)
 
     # 6) 报告
     report = ReportBuilder(fmt=settings.get("report", "format", default="markdown")).build(
@@ -107,3 +115,40 @@ def fund_empty():
     import pandas as pd
 
     return pd.DataFrame(columns=["report_period", "ann_date", "growth", "quality", "total"])
+
+
+def _pattern_alpha(store, regime, cand_bars, as_of):
+    """若本地有规律库且当前状态命中 Pattern，则为候选股算出「规律信号」分。
+
+    任何缺失/异常都返回 None（优雅降级），不影响主流程。
+    """
+    from pathlib import Path
+
+    if regime is None or cand_bars is None or cand_bars.empty:
+        return None
+    path = Path(store.root) / "patterns.json"
+    if not path.exists():
+        return None
+    try:
+        import pandas as pd
+
+        from .mining.pattern_miner import PatternLibrary
+        from .mining.panel import price_factors
+        from .factors.library import standardize
+
+        pat = PatternLibrary.load(path).get(regime.key())
+        if pat is None:
+            return None
+        close = cand_bars.copy()
+        close["date"] = pd.to_datetime(close["date"])
+        wide = close.pivot_table(index="date", columns="symbol", values="close").sort_index()
+        if as_of:
+            wide = wide[wide.index <= pd.to_datetime(as_of)]
+        if wide.empty:
+            return None
+        facs = price_factors(wide)
+        fv = pd.DataFrame({name: mat.iloc[-1] for name, mat in facs.items()})
+        score = pat.score(fv)
+        return standardize(score) if score is not None and not score.empty else None
+    except Exception:
+        return None
