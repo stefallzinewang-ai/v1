@@ -4,7 +4,7 @@
 
 # 数据源
 data_source:
-  primary: akshare          # akshare | tushare | baostock
+  primary: eastmoney        # eastmoney（内置，零额外依赖）| akshare | tushare
   tushare_token: ""         # 若用 tushare 填入；留空则不启用
   rate_limit_per_min: 60    # 限速，避免被封
   max_retries: 4            # 失败重试次数（指数退避）

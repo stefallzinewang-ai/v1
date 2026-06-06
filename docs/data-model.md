@@ -19,14 +19,21 @@
 
 ## 2. 数据源
 
-### 主数据源：AKShare
-- 免费、无需 token、覆盖面广，是 A 股研究的事实标准之一。
-- 提供：A 股日线行情、财务摘要/三大报表、宏观经济指标、行业板块、概念板块成分。
-- 缺点：接口偶有变动、限速、需自建缓存。→ 由 `data/ingest.py` 统一处理重试与缓存。
+### 主数据源：EastmoneySource（内置，直连东方财富）
+- **零额外重依赖**，仅用 `requests`，直连东方财富公开行情/财务接口（akshare 底层也是调它）。
+- 已实现：日线行情（后复权）、指数行情、业绩报表（含**公告日 ann_date**）、行业板块成分。
+- 设计上**解析逻辑与 HTTP 抓取分离**：`parse_kline` / `parse_financials` 等纯函数可用
+  离线样本完全单测（见 `tests/test_data.py` 与 `tests/fixtures/`），抓取层只是薄壳。
+- 限速 / 重试在 `data/http.py::HttpClient` 统一处理（4xx 不无谓重试）。
+- 待接入：宏观指标 `macro()`。
 
 ### 可选补充
+- **AKShare**：社区封装，覆盖更全（含宏观）；作为可选适配器（`AkshareSource`）。
 - **Tushare Pro**：质量高、字段全，但需积分 token。适合财务与 point-in-time 数据。
 - **baostock**：免费历史行情，作为行情交叉校验。
+
+> ⚠️ 这些数据源主机（eastmoney/sina 等）在受限网络（如本项目的云执行环境白名单代理）
+> 下可能被拦截（返回 403）。需在能访问数据源的机器上运行采集（`alpharadar sync`）。
 
 所有数据源都实现统一接口 `data/sources/base.py::DataSource`，上层只依赖接口，不依赖具体源。
 

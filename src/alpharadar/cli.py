@@ -61,6 +61,47 @@ def _cmd_pipeline(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sync(args: argparse.Namespace) -> int:
+    """采集某条主线候选股的行情与财务到本地存储（真实联网）。
+
+    在云环境里数据源被网络策略拦截会报错；请在能访问东方财富的机器上运行。
+    """
+    from .config import Settings, ThemeConfig
+    from .data.sources.eastmoney_source import EastmoneySource
+    from .data.store import DataStore
+    from .data.ingest import Ingestor
+
+    settings = Settings.load()
+    theme = ThemeConfig.load(args.theme_id)
+    symbols = theme.seed_symbols
+    if not symbols:
+        print(f"主线 '{args.theme_id}' 没有候选种子股。")
+        return 1
+
+    source = EastmoneySource(
+        rate_limit_per_min=settings.get("data_source", "rate_limit_per_min", default=60),
+        max_retries=settings.get("data_source", "max_retries", default=4),
+    )
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    ing = Ingestor(source, store)
+    start = settings.get("universe", "start", default="2010-01-01")
+    end = args.end
+
+    print(f"采集主线 '{theme.name}' 候选股：{', '.join(symbols)}")
+    print(f"区间：{start} ~ {end}\n")
+    try:
+        n_bars = ing.sync_bars(symbols, start, end)
+        print(f"  行情：写入 {n_bars} 行")
+        n_fin = ing.sync_financials(symbols, start, end)
+        print(f"  财务：写入 {n_fin} 行")
+    except Exception as exc:  # 网络被拦截等
+        print(f"\n采集失败：{type(exc).__name__}: {exc}")
+        print("提示：若在云环境，金融数据源可能被网络策略拦截；请在本地运行。")
+        return 1
+    print(f"\n完成。数据已落地到 {store.root}")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     print(
         f"[run] 主线 '{args.theme_id}' 的端到端流水线尚未实现。\n"
@@ -84,6 +125,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_show.set_defaults(func=_cmd_show)
 
     sub.add_parser("pipeline", help="显示八层流水线步骤").set_defaults(func=_cmd_pipeline)
+
+    p_sync = sub.add_parser("sync", help="采集某条主线候选股的行情/财务到本地（联网）")
+    p_sync.add_argument("theme_id", help="主线 id，如 ai_optical_module")
+    p_sync.add_argument("--end", default="2025-12-31", help="采集截止日期 YYYY-MM-DD")
+    p_sync.set_defaults(func=_cmd_sync)
 
     p_run = sub.add_parser("run", help="对某条主线端到端运行（待实现）")
     p_run.add_argument("theme_id", help="主线 id")

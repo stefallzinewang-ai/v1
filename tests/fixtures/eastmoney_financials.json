@@ -1,0 +1,30 @@
+{
+  "result": {
+    "data": [
+      {
+        "SECURITY_CODE": "300308",
+        "REPORT_DATE": "2024-03-31 00:00:00",
+        "NOTICE_DATE": "2024-04-25 00:00:00",
+        "TOTAL_OPERATE_INCOME": 4800000000.0,
+        "YSTZ": 80.5,
+        "PARENT_NETPROFIT": 900000000.0,
+        "SJLTZ": 250.3,
+        "XSMLL": 33.2,
+        "WEIGHTAVG_ROE": 6.8,
+        "MGJYXJJE": 0.45
+      },
+      {
+        "SECURITY_CODE": "300308",
+        "REPORT_DATE": "2023-12-31 00:00:00",
+        "NOTICE_DATE": "2024-04-15 00:00:00",
+        "TOTAL_OPERATE_INCOME": 10700000000.0,
+        "YSTZ": 11.2,
+        "PARENT_NETPROFIT": 2170000000.0,
+        "SJLTZ": 77.6,
+        "XSMLL": 30.1,
+        "WEIGHTAVG_ROE": 17.5,
+        "MGJYXJJE": 1.80
+      }
+    ]
+  }
+}

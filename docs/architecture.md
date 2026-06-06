@@ -48,7 +48,7 @@
 → 详见 [`data-model.md`](data-model.md)。
 
 **关键模块**
-- `data/sources/` — 各数据源适配器（AKShare 为主，Tushare/baostock 可选），实现统一 `DataSource` 接口。
+- `data/sources/` — 各数据源适配器（内置 `EastmoneySource` 直连东方财富；AKShare/Tushare 可选），实现统一 `DataSource` 接口。
 - `data/ingest.py` — 采集编排：增量更新、重试、限速、缓存。
 - `data/store.py` — 存储抽象：时间序列走 parquet/duckdb，元数据走 SQLite。
 
@@ -130,7 +130,7 @@ config/themes │ 主题选择 │  ← 可由用户指定，或由 regime+行�
 | 关注点 | 选择 | 理由 |
 |--------|------|------|
 | 语言 | Python 3.10+ | 数据科学生态最成熟 |
-| A股数据 | AKShare（主） | 免费、覆盖全、社区活跃；Tushare/baostock 备选 |
+| A股数据 | EastmoneySource（内置，直连东方财富） | 零额外依赖、可控；AKShare/Tushare 可选 |
 | 时序存储 | parquet + DuckDB | 本地、列存、查询快、零运维 |
 | 元数据 | SQLite (SQLAlchemy) | 轻量、零部署 |
 | 建模 | pandas + scikit-learn | 因子计算与统计建模 |
