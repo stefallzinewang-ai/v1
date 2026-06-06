@@ -42,6 +42,13 @@ def test_symbol_normalization():
     assert S.to_secid("600000") == "1.600000"
 
 
+def test_index_secid():
+    # 指数按 399 前缀判市场，而非个股首位规则
+    assert S.to_index_secid("399006") == "0.399006"   # 创业板指（深）
+    assert S.to_index_secid("000300") == "1.000300"   # 沪深300（沪）
+    assert S.to_index_secid("000016.SH") == "1.000016"  # 容忍带后缀
+
+
 # ── 纯解析器（离线样本验证）────────────────────────────────────
 def test_parse_kline():
     df = parse_kline(_load("eastmoney_kline.json"), "300308")

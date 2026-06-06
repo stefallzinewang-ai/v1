@@ -50,6 +50,22 @@ class Ingestor:
                 total += len(df)
         return total
 
+    def sync_indices(self, index_symbols: Sequence[str], start: str, end: str) -> int:
+        """增量同步指数行情到本地（与个股共用 bars 存储，按 symbol 区分）。"""
+        self.store.ensure_dirs()
+        total = 0
+        for raw in index_symbols:
+            sym = S.normalize_symbol(raw)
+            wm = self.store.watermark("bars", sym)
+            fetch_start = _next_day(wm) if wm and wm >= start else start
+            if fetch_start > end:
+                continue
+            df = validate_bars(self.source.index_bars(raw, fetch_start, end))
+            if not df.empty:
+                self.store.write_bars(df)
+                total += len(df)
+        return total
+
     def sync_financials(self, symbols: Sequence[str], start: str, end: str) -> int:
         self.store.ensure_dirs()
         df = self.source.financials(symbols, start, end)

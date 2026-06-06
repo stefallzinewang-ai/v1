@@ -87,9 +87,14 @@ def _cmd_sync(args: argparse.Namespace) -> int:
     start = settings.get("universe", "start", default="2010-01-01")
     end = args.end
 
+    indices = list((settings.get("regime", "indices", default=None) or
+                    _default_indices()).values())
+
     print(f"采集主线 '{theme.name}' 候选股：{', '.join(symbols)}")
     print(f"区间：{start} ~ {end}\n")
     try:
+        n_idx = ing.sync_indices(indices, start, end)
+        print(f"  指数：写入 {n_idx} 行（用于市场状态）")
         n_bars = ing.sync_bars(symbols, start, end)
         print(f"  行情：写入 {n_bars} 行")
         n_fin = ing.sync_financials(symbols, start, end)
@@ -99,6 +104,41 @@ def _cmd_sync(args: argparse.Namespace) -> int:
         print("提示：若在云环境，金融数据源可能被网络策略拦截；请在本地运行。")
         return 1
     print(f"\n完成。数据已落地到 {store.root}")
+    return 0
+
+
+def _default_indices() -> dict:
+    from .regime.detector import DEFAULT_INDICES
+
+    return DEFAULT_INDICES
+
+
+def _cmd_regime(args: argparse.Namespace) -> int:
+    """读取本地已采集的指数行情，判断并打印当前市场状态。"""
+    from .config import Settings
+    from .data.store import DataStore
+    from .regime.detector import RegimeDetector
+
+    settings = Settings.load()
+    store = DataStore(root=settings.get("storage", "root", default="./data_store"))
+    indices_map = settings.get("regime", "indices", default=None) or _default_indices()
+    bars = store.read_bars(symbols=list(indices_map.values()))
+    if bars.empty:
+        print("本地没有指数行情。请先运行：python -m alpharadar.cli sync <theme>")
+        return 1
+
+    detector = RegimeDetector(
+        trend_ma_window=settings.get("regime", "trend_ma_window", default=200),
+        smoothing_days=settings.get("regime", "smoothing_days", default=5),
+        indices=indices_map,
+    )
+    state = detector.detect(bars, as_of=args.as_of)
+    print(f"市场状态 @ {state.as_of}")
+    print(f"  趋势 trend          : {state.trend}")
+    print(f"  风格 style          : {state.style}")
+    print(f"  风险偏好 risk        : {state.risk_appetite}")
+    print(f"  流动性 liquidity     : {state.liquidity}")
+    print(f"  状态键 key           : {state.key()}")
     return 0
 
 
@@ -130,6 +170,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("theme_id", help="主线 id，如 ai_optical_module")
     p_sync.add_argument("--end", default="2025-12-31", help="采集截止日期 YYYY-MM-DD")
     p_sync.set_defaults(func=_cmd_sync)
+
+    p_regime = sub.add_parser("regime", help="判断当前市场状态（需先 sync 指数行情）")
+    p_regime.add_argument("--as-of", default=None, help="指定日期 YYYY-MM-DD（默认最新）")
+    p_regime.set_defaults(func=_cmd_regime)
 
     p_run = sub.add_parser("run", help="对某条主线端到端运行（待实现）")
     p_run.add_argument("theme_id", help="主线 id")

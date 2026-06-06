@@ -65,6 +65,18 @@ def to_secid(symbol: str) -> str:
     return f"{market}.{code}"
 
 
+def to_index_secid(index_code: str) -> str:
+    """指数代码 → 东方财富 secid。
+
+    指数不能按个股首位数字判断交易所（如 000001 既是上证指数也是平安银行）：
+        399 开头（深证系列，如创业板指 399006）→ market 0；
+        其余（中证/上证系列，如 000300/000016/000852）→ market 1。
+    """
+    code = index_code.split(".")[0].strip()
+    market = "0" if code.startswith("399") else "1"
+    return f"{market}.{code}"
+
+
 def code6(symbol: str) -> str:
     """取纯 6 位代码。"""
     return normalize_symbol(symbol).split(".")[0]

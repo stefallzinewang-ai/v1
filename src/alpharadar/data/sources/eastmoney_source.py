@@ -125,7 +125,8 @@ class EastmoneySource(DataSource):
         return out
 
     def index_bars(self, index_code: str, start: str, end: str) -> pd.DataFrame:
-        return self._kline(S.to_secid(index_code), index_code, start, end)
+        # 指数用专门的 secid 映射（不能按个股首位数字判断交易所）
+        return self._kline(S.to_index_secid(index_code), index_code, start, end)
 
     def industry_members(self, industry: str) -> pd.DataFrame:
         # industry 传板块代码，如 'BK0457'（光通信）

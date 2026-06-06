@@ -36,6 +36,12 @@ selection:
 regime:
   trend_ma_window: 200      # 趋势判断均线窗口（交易日）
   smoothing_days: 5         # 状态切换平滑，防抖动
+  indices:                  # 角色 → 指数代码（用于市场状态判断）
+    broad:  "000300.SH"     # 沪深300：趋势基准
+    growth: "399006.SZ"     # 创业板指：成长代表
+    value:  "000016.SH"     # 上证50：价值代表
+    small:  "000852.SH"     # 中证1000：小盘代表
+    large:  "000016.SH"     # 上证50：大盘代表
 
 # 报告
 report:
